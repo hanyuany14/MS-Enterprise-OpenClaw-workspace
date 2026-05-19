@@ -1,0 +1,57 @@
+# ============================================================================
+# Hosted Agent - Code Agent v9.0
+# 2026.03.02 George: initial version
+# ============================================================================
+
+# --- Core: Microsoft Agent Framework ---
+agent-framework==1.0.0rc3
+
+# --- Hosted Agent: AgentServer adapter ---
+azure-ai-agentserver-core==1.0.0b15
+
+# --- Azure AI: Foundry project client ---
+azure-ai-projects==2.0.0b4
+azure-ai-agents==1.2.0b5
+
+# --- Azure Identity ---
+azure-core
+azure-identity
+msal
+PyJWT
+
+# --- Azure Storage: Blob + Table ---
+azure-storage-blob
+azure-data-tables
+
+# --- Utilities ---
+python-dotenv
+
+# --- Code execution dependencies ---
+matplotlib
+pandas
+numpy
+openpyxl
+
+# 繪圖/視覺化：
+diagrams
+graphviz
+pillow
+
+#API 工具：
+requests
+httpx
+PyJWT
+urllib3
+aiohttp
+pyyaml
+
+# mcp
+mcp
+fastapi
+uvicorn
+
+# connect to Fabric sql database
+pyodbc
+
+# Azure Management: Container Apps (for ACA env var inspector) 
+azure-mgmt-appcontainers

@@ -1,0 +1,61 @@
+# Unique identifier/name for this agent
+name: coding-agents-in-workflow
+# Brief description of what this agent does
+description: >
+  A workflow agent that responds to product launch strategy inquiries by concurrently leveraging insights from three specialized agents.
+metadata:
+  # Categorization tags for organizing and discovering agents
+  authors:
+    - George Liang
+  tags:
+    - Azure AI AgentServer
+    - Microsoft Agent Framework
+    - Workflows
+template:
+  name: agents-in-workflow
+  # The type of agent - "hosted" for HOBO, "container" for COBO
+  kind: hosted
+  protocols:
+    - protocol: responses
+  environment_variables:
+    # --- Azure AI Foundry ---
+    - name: AZURE_AI_PROJECT_ENDPOINT
+      value: ${AZURE_AI_PROJECT_ENDPOINT}
+    - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+      value: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+
+    # --- Azure OpenAI ---
+    - name: AZURE_OPENAI_RESPONSES_DEPLOYMENT_NAME
+      value: ${AZURE_OPENAI_RESPONSES_DEPLOYMENT_NAME}
+
+    # --- Azure Storage (Blob/Table) ---
+    - name: AZURE_STORAGE_ACCOUNT_NAME
+      value: ${AZURE_STORAGE_ACCOUNT_NAME}
+    - name: AZURE_STORAGE_ACCOUNT_KEY
+      value: ${AZURE_STORAGE_ACCOUNT_KEY}
+
+    # --- Table / Blob 自訂名稱 ---
+    - name: CONVERSATION_TABLE_NAME
+      value: ${CONVERSATION_TABLE_NAME}
+    - name: SKILLS_BLOB_CONTAINER
+      value: ${SKILLS_BLOB_CONTAINER}
+    - name: SKILLS_DIR
+      value: ${SKILLS_DIR}
+
+    # --- Gatekeeper ---
+    - name: GATEKEEPER_ENABLED
+      value: ${GATEKEEPER_ENABLED}
+
+    # --- Streaming keep-alive ---
+    - name: KEEPALIVE_INTERVAL
+      value: ${KEEPALIVE_INTERVAL}
+
+    # --- Debug ---
+    - name: LOG_REQUEST_DEBUG
+      value: ${LOG_REQUEST_DEBUG}
+
+
+resources:
+  - kind: model
+    id: gpt-5-mini
+    name: chat

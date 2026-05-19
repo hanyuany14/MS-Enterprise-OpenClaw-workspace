@@ -1,0 +1,25 @@
+# Python 虛擬環境（這就是你之前 OneDrive 的痛點！）
+venv/
+.venv/
+env/
+
+# Python 編譯檔案
+__pycache__/
+*.pyc
+*.pyo
+
+# 打包產物
+build/
+dist/
+*.egg-info/
+
+# IDE 設定
+.vscode/
+.idea/
+
+# OS 系統檔案
+.DS_Store
+Thumbs.db
+
+# 環境變數（含密碼等敏感資訊）
+.env
