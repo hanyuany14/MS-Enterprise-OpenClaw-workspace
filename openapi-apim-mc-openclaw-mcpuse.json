@@ -1,0 +1,658 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "mc-openclaw-mcpuse",
+    "description": "OpenClaw Code Agent API exposed through APIM. Provides REST endpoints for running coding workflows, clearing sessions, listing and syncing skills, handling skill review callbacks, health checks, and optional MCP Streamable HTTP pass-through.",
+    "version": "1.0"
+  },
+  "servers": [
+    {
+      "url": "https://kurt-apim.azure-api.net/mc-openclaw-mcpuse"
+    }
+  ],
+  "paths": {
+    "/run": {
+      "post": {
+        "operationId": "runCodingWorkflow",
+        "summary": "Run coding workflow",
+        "description": "Runs a coding workflow from a natural-language request. Supports session continuation and optional credentials. Returns completion status, response text, session metadata, referenced skills, and generated file links.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AuthorizationHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ms-openclaw-run-body"
+              },
+              "example": {
+                "request": "幫我產生一個讀取 CSV 並輸出統計圖的 Python 腳本",
+                "session_id": "abc-123",
+                "credentials": {
+                  "OPENAI_API_KEY": "xxx"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workflow response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowResponse"
+                },
+                "example": {
+                  "status": "completed",
+                  "response": "已完成，以下是產生的程式碼與執行結果。",
+                  "session_id": "abc-123",
+                  "session_hint": "帶回此 session_id 以延續對話上下文（turn history + final code）",
+                  "skills_referenced": [
+                    "fabric-sql"
+                  ],
+                  "turn_count": 1,
+                  "uploads": [
+                    {
+                      "filename": "report.xlsx",
+                      "url": "https://storage.blob.core.windows.net/..."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestFailed"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalErrorFailed"
+          }
+        }
+      }
+    },
+    "/clear": {
+      "post": {
+        "operationId": "clearSession",
+        "summary": "Clear session",
+        "description": "Clears stored metadata and conversation history for a session. After clearing, the same session ID can no longer continue previous context.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearSessionRequest"
+              },
+              "example": {
+                "session_id": "abc-123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session cleared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleCompletedResponse"
+                },
+                "example": {
+                  "status": "completed",
+                  "response": "Session cleared."
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestFailed"
+          }
+        }
+      }
+    },
+    "/skills": {
+      "get": {
+        "operationId": "listSkills",
+        "summary": "List skills",
+        "description": "Lists the runtime skills currently available to the Code Agent. Useful for debugging and grounding upstream agents.",
+        "responses": {
+          "200": {
+            "description": "Markdown-formatted skill list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleCompletedResponse"
+                },
+                "example": {
+                  "status": "completed",
+                  "response": "- **fabric-sql**: Query Fabric SQL warehouse\n- **graph-api**: Call Microsoft Graph APIs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sync": {
+      "post": {
+        "operationId": "syncSkills",
+        "summary": "Sync skills",
+        "description": "Forces the service to sync skills from Azure Blob Storage into the local runtime and rebuild workflow skill context.",
+        "responses": {
+          "200": {
+            "description": "Skill sync result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleCompletedResponse"
+                },
+                "example": {
+                  "status": "completed",
+                  "response": "Skills synced successfully."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/approve": {
+      "post": {
+        "operationId": "approvePendingSkill",
+        "summary": "Approve pending skill",
+        "description": "Callback endpoint for human-in-the-loop skill approval. Approves a pending skill update, merges it into the formal skill catalog, syncs runtime skills, and clears the pending item.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillReviewRequest"
+              },
+              "example": {
+                "pending_id": "pending-20260326-a1b2c3",
+                "reviewer": "george@contoso.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Skill approved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillReviewResponse"
+                },
+                "example": {
+                  "status": "approved",
+                  "pending_id": "pending-20260326-a1b2c3",
+                  "reviewer": "george@contoso.com"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "404": {
+            "description": "Pending item not found or not approved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorReasonResponse"
+                },
+                "example": {
+                  "status": "error",
+                  "reason": "Pending skill not found."
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalErrorReason"
+          }
+        }
+      }
+    },
+    "/api/skills/reject": {
+      "post": {
+        "operationId": "rejectPendingSkill",
+        "summary": "Reject pending skill",
+        "description": "Callback endpoint for human-in-the-loop skill rejection. Rejects and removes a pending skill update without changing the formal skill catalog.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillReviewRequest"
+              },
+              "example": {
+                "pending_id": "pending-20260326-a1b2c3",
+                "reviewer": "george@contoso.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Skill rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillReviewResponse"
+                },
+                "example": {
+                  "status": "rejected",
+                  "pending_id": "pending-20260326-a1b2c3",
+                  "reviewer": "george@contoso.com"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalErrorReason"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Health check",
+        "description": "Returns service readiness and basic endpoint metadata. Use this operation for APIM testing and Container Apps health validation.",
+        "responses": {
+          "200": {
+            "description": "Service health status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "service": "code-agent-mcp",
+                  "version": "10.0",
+                  "transport": "streamable-http",
+                  "endpoints": {
+                    "mcp": "/mcp",
+                    "rest": "/run",
+                    "health": "/health"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "operationId": "mcpStreamableHttp",
+        "summary": "MCP streamable HTTP",
+        "description": "Pass-through endpoint for MCP Streamable HTTP clients. This is a JSON-RPC based protocol endpoint, not a normal REST resource. Keep APIM request and response transformations disabled unless you explicitly understand MCP framing.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonRpcRequest"
+              },
+              "example": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/list",
+                "params": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP JSON-RPC response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "AuthorizationHeader": {
+        "name": "Authorization",
+        "in": "header",
+        "required": false,
+        "description": "Optional bearer token. If provided to /run, the backend injects it into workflow credentials as __user_token.",
+        "schema": {
+          "type": "string",
+          "example": "Bearer <user-token>"
+        }
+      }
+    },
+    "schemas": {
+      "ms-openclaw-run-body": {
+        "type": "object",
+        "required": [
+          "request"
+        ],
+        "properties": {
+          "request": {
+            "type": "string",
+            "description": "Natural-language coding request."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Optional existing session ID. Omit or empty to start a new session."
+          },
+          "credentials": {
+            "type": "object",
+            "description": "Optional runtime credentials or environment values.",
+            "additionalProperties": true,
+            "properties": {
+              "OPENAI_API_KEY": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClearSessionRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session ID to clear."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SkillReviewRequest": {
+        "type": "object",
+        "required": [
+          "pending_id"
+        ],
+        "properties": {
+          "pending_id": {
+            "type": "string",
+            "description": "Pending skill review ID."
+          },
+          "reviewer": {
+            "type": "string",
+            "description": "Reviewer identity. Defaults to unknown."
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "needs_input",
+              "failed",
+              "running",
+              "rejected",
+              "cancelled",
+              "cancelling",
+              "no_running_task",
+              "still_running",
+              "error"
+            ]
+          },
+          "response": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "session_hint": {
+            "type": "string"
+          },
+          "skills_referenced": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "turn_count": {
+            "type": "integer",
+            "nullable": true
+          },
+          "uploads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Upload"
+            }
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "task_description": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Upload": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SimpleCompletedResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed"
+            ]
+          },
+          "response": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SkillReviewResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "pending_id": {
+            "type": "string"
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "starting"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string"
+          },
+          "endpoints": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "FailedResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ErrorReasonResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "error"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "JsonRpcRequest": {
+        "type": "object",
+        "required": [
+          "jsonrpc",
+          "method"
+        ],
+        "properties": {
+          "jsonrpc": {
+            "type": "string",
+            "example": "2.0"
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "responses": {
+      "BadRequestFailed": {
+        "description": "Bad request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FailedResponse"
+            },
+            "example": {
+              "status": "failed",
+              "error": "Missing 'request' field"
+            }
+          }
+        }
+      },
+      "InternalErrorFailed": {
+        "description": "Internal error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/FailedResponse"
+            },
+            "example": {
+              "status": "failed",
+              "error": "Internal server error."
+            }
+          }
+        }
+      },
+      "BadRequestError": {
+        "description": "Bad request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorReasonResponse"
+            },
+            "example": {
+              "status": "error",
+              "reason": "Missing 'pending_id'"
+            }
+          }
+        }
+      },
+      "InternalErrorReason": {
+        "description": "Internal error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorReasonResponse"
+            },
+            "example": {
+              "status": "error",
+              "reason": "Internal server error."
+            }
+          }
+        }
+      }
+    }
+  }
+}
