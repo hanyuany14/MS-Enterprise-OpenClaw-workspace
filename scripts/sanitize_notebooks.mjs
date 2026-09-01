@@ -45,3 +45,17 @@ for (const notebookPath of notebookPaths) {
 
   fs.writeFileSync(notebookPath, `${JSON.stringify(notebook, null, 1)}\n`);
 }
+
+const fabricDataAgentPath = "fabric-data-agent/run-fabric-data-agent.py";
+
+if (fs.existsSync(fabricDataAgentPath)) {
+  const source = fs.readFileSync(fabricDataAgentPath, "utf8");
+  const sanitizedSource = source
+    .replace(/import os\r?\n\s*\r?\nimport os\r?\n/, "import os\n")
+    .replace(
+      /^obo_token\s*=\s*["']eyJ[^"'\r\n]+["']\s*$/m,
+      'obo_token = os.environ["FABRIC_ACCESS_TOKEN"]',
+    );
+
+  fs.writeFileSync(fabricDataAgentPath, sanitizedSource);
+}
